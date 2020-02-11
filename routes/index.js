@@ -1,6 +1,7 @@
-const jwt = require('jsonwebtoken');
 const express = require('express');
 const router = express.Router();
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcrypt');
 
 router.get('/', (req, res) => {
 	res.send('Welcome to the Queensland Criminal Records API');
@@ -12,7 +13,6 @@ router.get('/offences', async (req, res) => {
 		const rows = await req.db.from('offence_columns').select('pretty');
 		res.json({ offences: rows.map((row) => row.pretty) });
 	} catch (err) {
-		console.log(err);
 		res.json({ message: 'Database error' });
 	}
 });
@@ -22,7 +22,6 @@ router.get('/areas', async (req, res) => {
 		const rows = await req.db.from('areas').select('area');
 		res.json({ areas: rows.map((row) => row.area) });
 	} catch (err) {
-		console.log(err);
 		res.json({ message: 'Database error' });
 	}
 });
@@ -32,7 +31,6 @@ router.get('/years', async (req, res) => {
 		const rows = await req.db.from('offences').distinct('year');
 		res.json({ years: rows.map((row) => row.year) });
 	} catch (err) {
-		console.log(err);
 		res.json({ message: 'Database error' });
 	}
 });
@@ -42,7 +40,6 @@ router.get('/genders', async (req, res) => {
 		const rows = await req.db.from('offences').distinct('gender');
 		res.json({ genders: rows.map((row) => row.gender) });
 	} catch (err) {
-		console.log(err);
 		res.json({ message: 'Database error' });
 	}
 });
@@ -52,7 +49,6 @@ router.get('/ages', async (req, res) => {
 		const rows = await req.db.from('offences').distinct('age');
 		res.json({ ages: rows.map((row) => row.age) });
 	} catch (err) {
-		console.log(err);
 		res.json({ message: 'Database error' });
 	}
 });
@@ -91,15 +87,28 @@ router.get('/search?', verifyToken, async (req, res) => {
 			.groupBy('areas.area');
 	};
 
+	const filter = (baseSearch) => {
+		const { offence, ...filter } = req.query;
+
+		return Object.keys(filter).reduce((acc, curr) => {
+			if (typeof filter[curr] === String) {
+				return acc.where(`offences.${curr}`, filter[curr]);
+			} else if (Array.isArray(filter[curr])) {
+				return acc.whereIn(`offences.${curr}`, filter[curr]);
+			} else {
+				return acc;
+			}
+		}, baseSearch);
+	};
+
 	try {
 		const offence = await req.db
 			.select('offence_columns.column')
 			.from('offence_columns')
 			.where('offence_columns.pretty', req.query.offence);
-		const result = await searchOffence(offence[0].column);
+		const result = await filter(searchOffence(offence[0].column));
 		res.json({ query: req.db.query, result });
 	} catch (err) {
-		console.log(err);
 		res.status(400).json({ message: 'invalid query' });
 	}
 });
@@ -108,11 +117,10 @@ router.get('/search?', verifyToken, async (req, res) => {
 router.post('/register', (req, res) => {
 	if (!req.body.email || !req.body.password) {
 		res.status(400).json({ message: `Invalid email or password` });
-		console.log(`Error on request body:`, JSON.stringify(req.body));
 	} else {
 		const user = {
 			email: req.body.email,
-			password: req.body.password
+			password: bcrypt.hashSync(req.body.password, 12)
 		};
 		req
 			.db('users')
@@ -129,7 +137,6 @@ router.post('/register', (req, res) => {
 router.post('/login', (req, res) => {
 	if (!req.body.email || !req.body.password) {
 		res.status(400).json({ message: `Invalid email or password` });
-		console.log(`Error on request body:`, JSON.stringify(req.body));
 	} else {
 		const user = {
 			email: req.body.email,
@@ -138,9 +145,12 @@ router.post('/login', (req, res) => {
 
 		req
 			.db('users')
-			.where({ ...user })
+			.where({ email: user.email })
 			.then((result) => {
 				if (result.length == 0) throw new Error('Wrong email or password');
+				if (!bcrypt.compareSync(user.password, result[0].password)) {
+					throw new Error('Invalid password');
+				}
 
 				//give json web token
 				jwt.sign({ user }, 'secretkey', { expiresIn: '86400' }, (err, token) => {
