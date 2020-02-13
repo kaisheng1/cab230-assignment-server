@@ -11,7 +11,7 @@ router.get('/', (req, res) => {
 router.get('/offences', async (req, res) => {
 	try {
 		const rows = await req.db.from('offence_columns').select('pretty');
-		res.json({ offences: rows.map((row) => row.pretty) });
+		res.status(200).json({ offences: rows.map((row) => row.pretty) });
 	} catch (err) {
 		res.json({ message: 'Database error' });
 	}
@@ -20,7 +20,7 @@ router.get('/offences', async (req, res) => {
 router.get('/areas', async (req, res) => {
 	try {
 		const rows = await req.db.from('areas').select('area');
-		res.json({ areas: rows.map((row) => row.area) });
+		res.status(200).json({ areas: rows.map((row) => row.area) });
 	} catch (err) {
 		res.json({ message: 'Database error' });
 	}
@@ -29,7 +29,7 @@ router.get('/areas', async (req, res) => {
 router.get('/years', async (req, res) => {
 	try {
 		const rows = await req.db.from('offences').distinct('year');
-		res.json({ years: rows.map((row) => row.year) });
+		res.status(200).json({ years: rows.map((row) => row.year) });
 	} catch (err) {
 		res.json({ message: 'Database error' });
 	}
@@ -38,7 +38,7 @@ router.get('/years', async (req, res) => {
 router.get('/genders', async (req, res) => {
 	try {
 		const rows = await req.db.from('offences').distinct('gender');
-		res.json({ genders: rows.map((row) => row.gender) });
+		res.status(200).json({ genders: rows.map((row) => row.gender) });
 	} catch (err) {
 		res.json({ message: 'Database error' });
 	}
@@ -47,7 +47,7 @@ router.get('/genders', async (req, res) => {
 router.get('/ages', async (req, res) => {
 	try {
 		const rows = await req.db.from('offences').distinct('age');
-		res.json({ ages: rows.map((row) => row.age) });
+		res.status(200).json({ ages: rows.map((row) => row.age) });
 	} catch (err) {
 		res.json({ message: 'Database error' });
 	}
@@ -76,6 +76,8 @@ router.get('/search?', verifyToken, async (req, res) => {
 	if (!req.query.offence) {
 		res.status(400).json({ message: 'missing offence query' });
 	}
+
+	//database logic
 	const searchOffence = (offence) => {
 		const total = `offences.${offence} as total`;
 		const lga = 'areas.area as LGA';
@@ -87,16 +89,15 @@ router.get('/search?', verifyToken, async (req, res) => {
 			.groupBy('areas.area');
 	};
 
+	//database logic
 	const filter = (baseSearch) => {
 		const { offence, ...filter } = req.query;
 
 		return Object.keys(filter).reduce((acc, curr) => {
-			if (typeof filter[curr] === String) {
-				return acc.where(`offences.${curr}`, filter[curr]);
-			} else if (Array.isArray(filter[curr])) {
+			if (Array.isArray(filter[curr])) {
 				return acc.whereIn(`offences.${curr}`, filter[curr]);
 			} else {
-				return acc;
+				return acc.where(`offences.${curr}`, filter[curr]);
 			}
 		}, baseSearch);
 	};
@@ -107,7 +108,7 @@ router.get('/search?', verifyToken, async (req, res) => {
 			.from('offence_columns')
 			.where('offence_columns.pretty', req.query.offence);
 		const result = await filter(searchOffence(offence[0].column));
-		res.json({ query: req.db.query, result });
+		res.status(200).json({ query: req.db.query, result });
 	} catch (err) {
 		res.status(400).json({ message: 'invalid query' });
 	}
