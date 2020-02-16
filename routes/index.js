@@ -26,6 +26,19 @@ router.get('/areas', async (req, res) => {
 	}
 });
 
+router.get('/area/:council', async (req, res) => {
+	if (!req.params.council) {
+		res.status(400).json({ message: 'missing council' });
+	}
+
+	try {
+		const rows = await req.db.from('areas').select('lat', 'lng').where('area', req.params.council);
+		res.status(200).json({ [req.params.council]: rows[0] });
+	} catch (err) {
+		res.json({ message: 'Database error' });
+	}
+});
+
 router.get('/years', async (req, res) => {
 	try {
 		const rows = await req.db.from('offences').distinct('year');
