@@ -77,9 +77,10 @@ const verifyToken = (req, res, next) => {
 		jwt.verify(req.token, 'secretkey', (err, authData) => {
 			if (err) {
 				res.status(401).json({ message: 'your token is not authorized' });
+			} else {
+				next();
 			}
 		});
-		next();
 	} else {
 		res.status(401).json({ message: 'your authorization token is missing' });
 	}
@@ -173,7 +174,7 @@ router.post('/login', (req, res) => {
 						token: token,
 						access_token: token,
 						token_type: 'Bearer',
-						expires_in: '86400'
+						expires_in: '24h'
 					});
 				});
 			})
